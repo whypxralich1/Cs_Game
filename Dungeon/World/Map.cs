@@ -19,8 +19,8 @@ namespace Dungeon.World
         public void Draw()
         {
             Console.SetCursorPosition(0, 2);
-            Console.WriteLine($"--- Dungeon Map: {Width}x{Height} ---");
-            Console.WriteLine($"Entities present: {Entities.Count}");
+            Console.WriteLine($"--- Dungeon Crawler: {Width}x{Height} ---");
+            Console.WriteLine($"Существ на уровне: {Entities.Count}");
         }
     }
 }
