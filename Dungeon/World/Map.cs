@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
+using System.Linq;
 using Dungeon.Entities;
 
 namespace Dungeon.World
@@ -16,11 +18,43 @@ namespace Dungeon.World
             Height = height;
         }
 
-        public void Draw()
+        public string GetView()
         {
-            Console.SetCursorPosition(0, 2);
-            Console.WriteLine($"--- Dungeon Crawler: {Width}x{Height} ---");
-            Console.WriteLine($"Существ на уровне: {Entities.Count}");
+            StringBuilder sb = new StringBuilder();
+            
+            var player = Entities.OfType<Player>().FirstOrDefault();
+            int hp = player?.Health ?? 0;
+
+            sb.AppendLine("==========================================");
+            sb.AppendLine($"   DUNGEON CRAWLER | HP: {hp} | Существ: {Entities.Count} ");
+            sb.AppendLine("==========================================");
+
+            for (int y = 0; y < Height; y++)
+            {
+                for (int x = 0; x < Width; x++)
+                {
+                    Entity? target = Entities.Find(e => e.X == x && e.Y == y);
+                    
+                    if (target != null)
+                    {
+                        if (target is Player) sb.Append("@");
+                        else if (target is Slime) sb.Append("S");
+                        else if (target is Orc) sb.Append("O");
+                        else sb.Append("E"); 
+                    }
+                    else if (y == 0 || y == Height - 1 || x == 0 || x == Width - 1)
+                    {
+                        sb.Append("#");
+                    }
+                    else
+                    {
+                        sb.Append(".");
+                    }
+                }
+                sb.AppendLine();
+            }
+            sb.AppendLine("==========================================");
+            return sb.ToString();
         }
     }
 }
