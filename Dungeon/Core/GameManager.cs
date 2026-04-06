@@ -1,56 +1,127 @@
 using System;
 using System.Threading;
+using System.Collections.Generic;
 using Dungeon.World;
+using Dungeon.Entities;
+using Dungeon.Factories;
 
 namespace Dungeon.Core
 {
     public class GameManager
     {
         private static GameManager? _instance;
+        public static GameManager Instance => _instance ??= new GameManager();
 
-        public static GameManager Instance
-        {
-            get
-            {
-                if (_instance == null)
-                {
-                    _instance = new GameManager();
-                }
-                return _instance;
-            }
-        }
+        private bool _isRunning = true;
+        private string _exitMessage = "Конец";
+        private Map _gameMap;
+        private Player _player;
 
         private GameManager()
         {
-            MapWidth = 25;
-            MapHeight = 15;
-            _gameMap = new Map(MapWidth, MapHeight);
+            _gameMap = new Map(30, 10);
+            _player = new Player { Name = "Hero", X = 15, Y = 7, Health = 100 };
+            _gameMap.Entities.Add(_player);
         }
-
-        public int MapWidth { get; private set; }
-        public int MapHeight { get; private set; }
-
-        private bool _isRunning = true;
-        private Map _gameMap;
 
         public void Run()
         {
             Console.Clear();
-            Console.WriteLine($"Размер карты: {MapWidth}x{MapHeight}");
-            Console.WriteLine("Нажмите ESC длч выхода из игры");
+            Console.CursorVisible = false;
+
+            List<EnemyFactory> spawners = new List<EnemyFactory> { new SlimeFactory(), new OrcFactory() };
+            int startX = 5;
+            foreach (var factory in spawners)
+            {
+                Enemy enemy = factory.CreateEnemy();
+                enemy.X = startX;
+                enemy.Y = 3;
+                startX += 15;
+                _gameMap.Entities.Add(enemy);
+            }
 
             while (_isRunning)
             {
                 if (Console.KeyAvailable)
                 {
-                    if (Console.ReadKey(true).Key == ConsoleKey.Escape) 
-                        _isRunning = false;
+                    HandleInput();
                 }
-                
-                _gameMap.Draw();
+
+                CheckCollisions();
+
+                if (_player.IsDead)
+                {
+                    _exitMessage = "ГЕРОЙ ПОГИБ!";
+                    _isRunning = false;
+                }
+
+                Render();
                 Thread.Sleep(50);
             }
-            Console.WriteLine("Игра окончена");
+
+            // Финальный экран
+            Console.Clear();
+            Console.SetCursorPosition(0, 0);
+            Console.WriteLine("######################################");
+            Console.WriteLine($"# {Padding(_exitMessage, 34)} #");
+            Console.WriteLine("######################################");
+            Console.WriteLine("\nНажмите любую клавишу для выхода...");
+            Console.ReadKey();
+        }
+
+        private string Padding(string text, int length)
+        {
+            if (text.Length >= length) return text;
+            int left = (length - text.Length) / 2;
+            return text.PadLeft(text.Length + left).PadRight(length);
+        }
+
+        private void HandleInput()
+        {
+            var key = Console.ReadKey(true).Key;
+            int nextX = _player.X;
+            int nextY = _player.Y;
+
+            if (key == ConsoleKey.W) nextY--;
+            else if (key == ConsoleKey.S) nextY++;
+            else if (key == ConsoleKey.A) nextX--;
+            else if (key == ConsoleKey.D) nextX++;
+            else if (key == ConsoleKey.Escape) 
+            {
+                _exitMessage = "Конец";
+                _isRunning = false;
+            }
+
+            if (nextX > 0 && nextX < _gameMap.Width - 1 && 
+                nextY > 0 && nextY < _gameMap.Height - 1)
+            {
+                _player.X = nextX;
+                _player.Y = nextY;
+            }
+        }
+
+        private void CheckCollisions()
+        {
+            foreach (var entity in _gameMap.Entities)
+            {
+                if (entity is Enemy enemy)
+                {
+                    int deltaX = Math.Abs(enemy.X - _player.X);
+                    int deltaY = Math.Abs(enemy.Y - _player.Y);
+
+                    if (deltaX <= 1 && deltaY <= 1)
+                    {
+                        _player.TakeDamage(enemy.Damage);
+                    }
+                }
+            }
+        }
+
+        private void Render()
+        {
+            Console.SetCursorPosition(0, 0);
+            Console.Write(_gameMap.GetView());
+            Console.WriteLine($"[ СТАТУС ]: X:{_player.X} Y:{_player.Y} | HP: {_player.Health}   ");
         }
     }
 }

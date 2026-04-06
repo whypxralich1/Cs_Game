@@ -2,12 +2,19 @@ namespace Dungeon.Entities
 {
     public class Player : Entity
     {
-        public int Experience { get; set; } = 0;
-
-        public Player(string name)
+        public Player()
         {
-            Name = name;
+            Name = "Hero";
             Health = 100;
+            X = 10;
+            Y = 5;
         }
+
+        public void TakeDamage(int amount)
+        {
+            Health -= amount;
+        }
+
+        public bool IsDead => Health <= 0;
     }
 }
