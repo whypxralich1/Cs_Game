@@ -3,7 +3,6 @@ using System.Threading;
 using System.Collections.Generic;
 using Dungeon.World;
 using Dungeon.Entities;
-using Dungeon.Factories;
 
 namespace Dungeon.Core
 {
@@ -29,16 +28,18 @@ namespace Dungeon.Core
             Console.Clear();
             Console.CursorVisible = false;
 
-            List<EnemyFactory> spawners = new List<EnemyFactory> { new SlimeFactory(), new OrcFactory() };
-            int startX = 5;
-            foreach (var factory in spawners)
-            {
-                Enemy enemy = factory.CreateEnemy();
-                enemy.X = startX;
-                enemy.Y = 3;
-                startX += 15;
-                _gameMap.Entities.Add(enemy);
-            }
+            Ork protoOrk = new Ork();
+            Slime protoSlime = new Slime();
+
+            Ork ork1 = (Ork)protoOrk.Clone();
+            ork1.X = 5; 
+            ork1.Y = 3;
+            _gameMap.Entities.Add(ork1);
+
+            Slime slime1 = (Slime)protoSlime.Clone();
+            slime1.X = 20; 
+            slime1.Y = 3;
+            _gameMap.Entities.Add(slime1);
 
             while (_isRunning)
             {
@@ -59,7 +60,6 @@ namespace Dungeon.Core
                 Thread.Sleep(50);
             }
 
-            // Финальный экран
             Console.Clear();
             Console.SetCursorPosition(0, 0);
             Console.WriteLine("######################################");

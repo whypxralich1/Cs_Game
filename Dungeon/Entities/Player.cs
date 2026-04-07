@@ -6,14 +6,13 @@ namespace Dungeon.Entities
         {
             Name = "Hero";
             Health = 100;
-            X = 10;
-            Y = 5;
+            X = 15;
+            Y = 7;
         }
 
-        public void TakeDamage(int amount)
-        {
-            Health -= amount;
-        }
+        public override Entity Clone() => (Player)this.MemberwiseClone();
+
+        public void TakeDamage(int amount) => Health -= amount;
 
         public bool IsDead => Health <= 0;
     }
