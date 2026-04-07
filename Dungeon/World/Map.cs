@@ -39,7 +39,7 @@ namespace Dungeon.World
                     {
                         if (target is Player) sb.Append("@");
                         else if (target is Slime) sb.Append("S");
-                        else if (target is Orc) sb.Append("O");
+                        else if (target is Ork) sb.Append("O");
                         else sb.Append("E"); 
                     }
                     else if (y == 0 || y == Height - 1 || x == 0 || x == Width - 1)
