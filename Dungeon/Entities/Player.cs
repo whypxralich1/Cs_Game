@@ -1,3 +1,5 @@
+using Dungeon.Logic;
+
 namespace Dungeon.Entities
 {
     public class Player : Entity
@@ -5,15 +7,16 @@ namespace Dungeon.Entities
         public Player()
         {
             Name = "Hero";
-            Health = 100;
+            HealthPoints = new Health(100);
             X = 15;
             Y = 7;
         }
 
         public override Entity Clone() => (Player)this.MemberwiseClone();
 
-        public void TakeDamage(int amount) => Health -= amount;
-
-        public bool IsDead => Health <= 0;
+        public int Health => HealthPoints.Current;
+        public bool IsDead => HealthPoints.IsDead;
+        
+        public void TakeDamage(int amount) => HealthPoints.TakeDamage(amount);
     }
 }

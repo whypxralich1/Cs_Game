@@ -1,5 +1,7 @@
+// Slime.cs
 using System;
 using System.Collections.Generic;
+using Dungeon.Logic;
 
 namespace Dungeon.Entities
 {
@@ -8,7 +10,7 @@ namespace Dungeon.Entities
         public Slime()
         {
             Name = "Green Slime";
-            Health = 20;
+            HealthPoints = new Health(20);
             Damage = 5;
             Skills = new List<string> { "Sticky Spit" };
         }
