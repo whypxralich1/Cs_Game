@@ -1,8 +1,10 @@
 using System;
-using System.Threading;
+using System.Diagnostics;
 using System.Collections.Generic;
+using System.Linq;
 using Dungeon.World;
 using Dungeon.Entities;
+using Dungeon.Decorators;
 
 namespace Dungeon.Core
 {
@@ -15,11 +17,16 @@ namespace Dungeon.Core
         private string _exitMessage = "Конец";
         private Map _gameMap;
         private Player _player;
+        
+        private IEntity _activePlayer; 
+        private int _shieldTimer = 0;
+        private Stopwatch _gameTimer = new Stopwatch();
 
         private GameManager()
         {
             _gameMap = new Map(30, 10);
-            _player = new Player { Name = "Hero", X = 15, Y = 7 }; 
+            _player = new Player { Name = "Hero", X = 15, Y = 7 };
+            _activePlayer = _player;
             _gameMap.Entities.Add(_player);
         }
 
@@ -28,26 +35,24 @@ namespace Dungeon.Core
             Console.Clear();
             Console.CursorVisible = false;
 
-            Ork protoOrk = new Ork();
-            Slime protoSlime = new Slime();
+            _gameMap.Entities.Add(new Ork { X = 5, Y = 3 });
+            _gameMap.Entities.Add(new Slime { X = 20, Y = 3 });
 
-            Ork ork1 = (Ork)protoOrk.Clone();
-            ork1.X = 5; 
-            ork1.Y = 3;
-            _gameMap.Entities.Add(ork1);
-
-            Slime slime1 = (Slime)protoSlime.Clone();
-            slime1.X = 20; 
-            slime1.Y = 3;
-            _gameMap.Entities.Add(slime1);
+            _gameTimer.Start();
+            long lastTime = _gameTimer.ElapsedMilliseconds;
 
             while (_isRunning)
             {
-                if (Console.KeyAvailable)
+                long currentTime = _gameTimer.ElapsedMilliseconds;
+                int deltaTime = (int)(currentTime - lastTime);
+                lastTime = currentTime;
+
+                while (Console.KeyAvailable)
                 {
                     HandleInput();
                 }
 
+                UpdateEffects(deltaTime);
                 CheckCollisions();
 
                 if (_player.IsDead)
@@ -57,9 +62,114 @@ namespace Dungeon.Core
                 }
 
                 Render();
-                Thread.Sleep(50);
+                System.Threading.Thread.Sleep(10); 
             }
 
+            ShowGameOver();
+        }
+
+        private void UpdateEffects(int deltaTime)
+        {
+            if (_shieldTimer > 0)
+            {
+                _shieldTimer -= deltaTime;
+                if (_shieldTimer <= 0)
+                {
+                    _shieldTimer = 0;
+                    _activePlayer = _player; 
+                }
+            }
+
+            foreach (var entity in _gameMap.Entities)
+            {
+                if (entity is Enemy enemy)
+                {
+                    enemy.UpdateCooldown(deltaTime);
+                }
+            }
+        }
+
+        private void CheckCollisions()
+        {
+            if (_gameMap.IsShieldSpawned && _player.X == _gameMap.ShieldX && _player.Y == _gameMap.ShieldY)
+            {
+                _activePlayer = new ShieldDecorator(_player);
+                _shieldTimer = 5000; 
+                _gameMap.IsShieldSpawned = false;
+            }
+
+            if (_gameMap.IsSwordSpawned && _player.X == _gameMap.SwordX && _player.Y == _gameMap.SwordY)
+            {
+                _activePlayer = new SwordDecorator(_activePlayer);
+                _gameMap.IsSwordSpawned = false;
+            }
+
+            foreach (var entity in _gameMap.Entities.ToList())
+            {
+                if (entity is Enemy enemy)
+                {
+                    if (Math.Abs(enemy.X - _player.X) <= 1 && Math.Abs(enemy.Y - _player.Y) <= 1)
+                    {
+                        if (enemy.CanAttack)
+                        {
+                            int incoming = _activePlayer.CalculateIncomingDamage(enemy.Damage);
+                            _player.TakeDamage(incoming);
+                            
+                            enemy.ResetCooldown();
+                        }
+
+                        int baseDmg = 0; 
+                        int outgoing = _activePlayer.CalculateOutgoingDamage(baseDmg);
+                        
+                        if (outgoing > 0)
+                        {
+                            enemy.TakeDamage(outgoing);
+                            _activePlayer = (_shieldTimer > 0) ? new ShieldDecorator(_player) : _player;
+                        }
+
+                        if (enemy.HealthPoints.IsDead)
+                        {
+                            _gameMap.Entities.Remove(enemy);
+                        }
+                    }
+                }
+            }
+        }
+
+        private void Render()
+        {
+            Console.SetCursorPosition(0, 0);
+            Console.Write(_gameMap.GetView());
+
+            string statusLine = $"[ СТАТУС ]: {_activePlayer.Name} | HP: {_player.Health}";
+            Console.WriteLine(statusLine.PadRight(60));
+            
+            if (_shieldTimer > 0) 
+                Console.WriteLine($"[ ЩИТ ]: {(_shieldTimer / 1000.0):F1} сек.".PadRight(60));
+            else 
+                Console.WriteLine("".PadRight(60)); 
+        }
+
+        private void HandleInput()
+        {
+            var key = Console.ReadKey(true).Key;
+            int nextX = _player.X, nextY = _player.Y;
+
+            if (key == ConsoleKey.W) nextY--;
+            else if (key == ConsoleKey.S) nextY++;
+            else if (key == ConsoleKey.A) nextX--;
+            else if (key == ConsoleKey.D) nextX++;
+            else if (key == ConsoleKey.Escape) _isRunning = false;
+
+            if (nextX > 0 && nextX < _gameMap.Width - 1 && nextY > 0 && nextY < _gameMap.Height - 1)
+            {
+                _player.X = nextX;
+                _player.Y = nextY;
+            }
+        }
+
+        private void ShowGameOver()
+        {
             Console.Clear();
             Console.SetCursorPosition(0, 0);
             Console.WriteLine("######################################");
@@ -74,54 +184,6 @@ namespace Dungeon.Core
             if (text.Length >= length) return text;
             int left = (length - text.Length) / 2;
             return text.PadLeft(text.Length + left).PadRight(length);
-        }
-
-        private void HandleInput()
-        {
-            var key = Console.ReadKey(true).Key;
-            int nextX = _player.X;
-            int nextY = _player.Y;
-
-            if (key == ConsoleKey.W) nextY--;
-            else if (key == ConsoleKey.S) nextY++;
-            else if (key == ConsoleKey.A) nextX--;
-            else if (key == ConsoleKey.D) nextX++;
-            else if (key == ConsoleKey.Escape) 
-            {
-                _exitMessage = "Конец";
-                _isRunning = false;
-            }
-
-            if (nextX > 0 && nextX < _gameMap.Width - 1 && 
-                nextY > 0 && nextY < _gameMap.Height - 1)
-            {
-                _player.X = nextX;
-                _player.Y = nextY;
-            }
-        }
-
-        private void CheckCollisions()
-        {
-            foreach (var entity in _gameMap.Entities)
-            {
-                if (entity is Enemy enemy)
-                {
-                    int deltaX = Math.Abs(enemy.X - _player.X);
-                    int deltaY = Math.Abs(enemy.Y - _player.Y);
-
-                    if (deltaX <= 1 && deltaY <= 1)
-                    {
-                        _player.TakeDamage(enemy.Damage);
-                    }
-                }
-            }
-        }
-
-        private void Render()
-        {
-            Console.SetCursorPosition(0, 0);
-            Console.Write(_gameMap.GetView());
-            Console.WriteLine($"[ СТАТУС ]: X:{_player.X} Y:{_player.Y}");
         }
     }
 }
