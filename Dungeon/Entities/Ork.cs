@@ -1,5 +1,7 @@
+// Ork.cs
 using System;
 using System.Collections.Generic;
+using Dungeon.Logic;
 
 namespace Dungeon.Entities
 {
@@ -8,7 +10,7 @@ namespace Dungeon.Entities
         public Ork()
         {
             Name = "Iron Orc";
-            Health = 60;
+            HealthPoints = new Health(60); 
             Damage = 15;
             Skills = new List<string> { "Heavy Swing" };
         }

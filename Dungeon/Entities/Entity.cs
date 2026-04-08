@@ -1,11 +1,12 @@
 using System.Collections.Generic;
+using Dungeon.Logic; // Добавили
 
 namespace Dungeon.Entities
 {
     public abstract class Entity
     {
         public string Name { get; set; } = string.Empty;
-        public int Health { get; set; }
+    public Health HealthPoints { get; set; } = null!;
         public int X { get; set; }
         public int Y { get; set; }
 

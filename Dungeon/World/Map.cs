@@ -53,7 +53,7 @@ namespace Dungeon.World
                 }
                 sb.AppendLine();
             }
-            sb.AppendLine("==========================================");
+            sb.AppendLine("==============================");
             return sb.ToString();
         }
     }

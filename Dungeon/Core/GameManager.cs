@@ -19,7 +19,7 @@ namespace Dungeon.Core
         private GameManager()
         {
             _gameMap = new Map(30, 10);
-            _player = new Player { Name = "Hero", X = 15, Y = 7, Health = 100 };
+            _player = new Player { Name = "Hero", X = 15, Y = 7 }; 
             _gameMap.Entities.Add(_player);
         }
 
@@ -121,7 +121,7 @@ namespace Dungeon.Core
         {
             Console.SetCursorPosition(0, 0);
             Console.Write(_gameMap.GetView());
-            Console.WriteLine($"[ СТАТУС ]: X:{_player.X} Y:{_player.Y} | HP: {_player.Health}   ");
+            Console.WriteLine($"[ СТАТУС ]: X:{_player.X} Y:{_player.Y}");
         }
     }
 }
