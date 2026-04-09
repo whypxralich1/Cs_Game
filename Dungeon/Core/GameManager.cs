@@ -22,6 +22,8 @@ namespace Dungeon.Core
         private int _shieldTimer = 0;
         private Stopwatch _gameTimer = new Stopwatch();
 
+        private CombatFacade _combat = new CombatFacade();
+
         private GameManager()
         {
             _gameMap = new Map(30, 10);
@@ -112,19 +114,11 @@ namespace Dungeon.Core
                     {
                         if (enemy.CanAttack)
                         {
-                            int incoming = _activePlayer.CalculateIncomingDamage(enemy.Damage);
-                            _player.TakeDamage(incoming);
-                            
-                            enemy.ResetCooldown();
-                        }
+                            _combat.ResolveCombat(_activePlayer, _player, enemy, () => {
+                                _activePlayer = (_shieldTimer > 0) ? new ShieldDecorator(_player) : _player;
+                            });
 
-                        int baseDmg = 0; 
-                        int outgoing = _activePlayer.CalculateOutgoingDamage(baseDmg);
-                        
-                        if (outgoing > 0)
-                        {
-                            enemy.TakeDamage(outgoing);
-                            _activePlayer = (_shieldTimer > 0) ? new ShieldDecorator(_player) : _player;
+                            enemy.ResetCooldown();
                         }
 
                         if (enemy.HealthPoints.IsDead)
