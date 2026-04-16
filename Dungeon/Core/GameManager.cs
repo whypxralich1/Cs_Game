@@ -13,16 +13,19 @@ namespace Dungeon.Core
         private static GameManager? _instance;
         public static GameManager Instance => _instance ??= new GameManager();
 
+        private const int DefaultShieldDuration = 5000;
+
         private bool _isRunning = true;
         private string _exitMessage = "Конец";
         private Map _gameMap;
         private Player _player;
-        
-        private IEntity _activePlayer; 
+        private IEntity _activePlayer;
         private int _shieldTimer = 0;
         private Stopwatch _gameTimer = new Stopwatch();
-
+        
         private CombatFacade _combat = new CombatFacade();
+        private ConsoleRenderer _renderer = new ConsoleRenderer();
+        private InputHandler _input = new InputHandler();
 
         private GameManager()
         {
@@ -34,9 +37,8 @@ namespace Dungeon.Core
 
         public void Run()
         {
-            Console.Clear();
-            Console.CursorVisible = false;
-
+            InitializeConsole();
+            
             _gameMap.Entities.Add(new Ork { X = 5, Y = 3 });
             _gameMap.Entities.Add(new Slime { X = 20, Y = 3 });
 
@@ -49,11 +51,7 @@ namespace Dungeon.Core
                 int deltaTime = (int)(currentTime - lastTime);
                 lastTime = currentTime;
 
-                while (Console.KeyAvailable)
-                {
-                    HandleInput();
-                }
-
+                HandleInput();
                 UpdateEffects(deltaTime);
                 CheckCollisions();
 
@@ -63,11 +61,44 @@ namespace Dungeon.Core
                     _isRunning = false;
                 }
 
-                Render();
-                System.Threading.Thread.Sleep(10); 
+                _renderer.Render(_gameMap, _activePlayer, _player, _shieldTimer);
+                System.Threading.Thread.Sleep(10);
             }
 
-            ShowGameOver();
+            _renderer.ShowGameOver(_exitMessage);
+        }
+
+        private void InitializeConsole()
+        {
+            Console.Clear();
+            Console.CursorVisible = false;
+        }
+
+        private void HandleInput()
+        {
+            var (dx, dy, escape) = _input.GetMovement();
+            
+            if (escape)
+            {
+                _isRunning = false;
+                return;
+            }
+
+            if (dx == 0 && dy == 0) return;
+
+            int nextX = _player.X + dx;
+            int nextY = _player.Y + dy;
+
+            if (IsWithinMapBoundaries(nextX, nextY))
+            {
+                _player.X = nextX;
+                _player.Y = nextY;
+            }
+        }
+
+        private bool IsWithinMapBoundaries(int x, int y)
+        {
+            return x > 0 && x < _gameMap.Width - 1 && y > 0 && y < _gameMap.Height - 1;
         }
 
         private void UpdateEffects(int deltaTime)
@@ -78,106 +109,68 @@ namespace Dungeon.Core
                 if (_shieldTimer <= 0)
                 {
                     _shieldTimer = 0;
-                    _activePlayer = _player; 
+                    _activePlayer = _player;
                 }
             }
 
-            foreach (var entity in _gameMap.Entities)
+            foreach (var enemy in _gameMap.Entities.OfType<Enemy>())
             {
-                if (entity is Enemy enemy)
-                {
-                    enemy.UpdateCooldown(deltaTime);
-                }
+                enemy.UpdateCooldown(deltaTime);
             }
         }
 
         private void CheckCollisions()
         {
-            if (_gameMap.IsShieldSpawned && _player.X == _gameMap.ShieldX && _player.Y == _gameMap.ShieldY)
+            HandleItemPickups();
+            HandleCombat();
+        }
+
+        private void HandleItemPickups()
+        {
+            if (_gameMap.IsShieldSpawned && IsPlayerOnItem(_gameMap.ShieldX, _gameMap.ShieldY))
             {
                 _activePlayer = new ShieldDecorator(_player);
-                _shieldTimer = 5000; 
+                _shieldTimer = DefaultShieldDuration;
                 _gameMap.IsShieldSpawned = false;
             }
 
-            if (_gameMap.IsSwordSpawned && _player.X == _gameMap.SwordX && _player.Y == _gameMap.SwordY)
+            if (_gameMap.IsSwordSpawned && IsPlayerOnItem(_gameMap.SwordX, _gameMap.SwordY))
             {
                 _activePlayer = new SwordDecorator(_activePlayer);
                 _gameMap.IsSwordSpawned = false;
             }
+        }
 
-            foreach (var entity in _gameMap.Entities.ToList())
+        private bool IsPlayerOnItem(int itemX, int itemY)
+        {
+            return _player.X == itemX && _player.Y == itemY;
+        }
+
+        private void HandleCombat()
+        {
+            foreach (var enemy in _gameMap.Entities.OfType<Enemy>().ToList())
             {
-                if (entity is Enemy enemy)
+                if (IsAdjacentToPlayer(enemy))
                 {
-                    if (Math.Abs(enemy.X - _player.X) <= 1 && Math.Abs(enemy.Y - _player.Y) <= 1)
+                    if (enemy.CanAttack)
                     {
-                        if (enemy.CanAttack)
-                        {
-                            _combat.ResolveCombat(_activePlayer, _player, enemy, () => {
-                                _activePlayer = (_shieldTimer > 0) ? new ShieldDecorator(_player) : _player;
-                            });
+                        _combat.ResolveCombat(_activePlayer, _player, enemy, () => {
+                            _activePlayer = (_shieldTimer > 0) ? new ShieldDecorator(_player) : _player;
+                        });
+                        enemy.ResetCooldown();
+                    }
 
-                            enemy.ResetCooldown();
-                        }
-
-                        if (enemy.HealthPoints.IsDead)
-                        {
-                            _gameMap.Entities.Remove(enemy);
-                        }
+                    if (enemy.HealthPoints.IsDead)
+                    {
+                        _gameMap.Entities.Remove(enemy);
                     }
                 }
             }
         }
 
-        private void Render()
+        private bool IsAdjacentToPlayer(Entity entity)
         {
-            Console.SetCursorPosition(0, 0);
-            Console.Write(_gameMap.GetView());
-
-            string statusLine = $"[ СТАТУС ]: {_activePlayer.Name} | HP: {_player.Health}";
-            Console.WriteLine(statusLine.PadRight(60));
-            
-            if (_shieldTimer > 0) 
-                Console.WriteLine($"[ ЩИТ ]: {(_shieldTimer / 1000.0):F1} сек.".PadRight(60));
-            else 
-                Console.WriteLine("".PadRight(60)); 
-        }
-
-        private void HandleInput()
-        {
-            var key = Console.ReadKey(true).Key;
-            int nextX = _player.X, nextY = _player.Y;
-
-            if (key == ConsoleKey.W) nextY--;
-            else if (key == ConsoleKey.S) nextY++;
-            else if (key == ConsoleKey.A) nextX--;
-            else if (key == ConsoleKey.D) nextX++;
-            else if (key == ConsoleKey.Escape) _isRunning = false;
-
-            if (nextX > 0 && nextX < _gameMap.Width - 1 && nextY > 0 && nextY < _gameMap.Height - 1)
-            {
-                _player.X = nextX;
-                _player.Y = nextY;
-            }
-        }
-
-        private void ShowGameOver()
-        {
-            Console.Clear();
-            Console.SetCursorPosition(0, 0);
-            Console.WriteLine("######################################");
-            Console.WriteLine($"# {Padding(_exitMessage, 34)} #");
-            Console.WriteLine("######################################");
-            Console.WriteLine("\nНажмите любую клавишу для выхода...");
-            Console.ReadKey();
-        }
-
-        private string Padding(string text, int length)
-        {
-            if (text.Length >= length) return text;
-            int left = (length - text.Length) / 2;
-            return text.PadLeft(text.Length + left).PadRight(length);
+            return Math.Abs(entity.X - _player.X) <= 1 && Math.Abs(entity.Y - _player.Y) <= 1;
         }
     }
 }
