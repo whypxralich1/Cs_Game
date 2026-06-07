@@ -19,6 +19,8 @@ namespace Dungeon.Tests
             ork.SetStrategy(new MeleeAttack());
             ork.AttackStrategy.Execute(ork, player, player, combat, callback);
 
+            ork.HealthPoints.TakeDamage(45);
+
             int expectedFleeX = 13; 
             ork.SetStrategy(new FleeBehavior());
             ork.AttackStrategy.Execute(ork, player, player, combat, callback);
