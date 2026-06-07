@@ -5,6 +5,7 @@ using System.Linq;
 using Dungeon.World;
 using Dungeon.Entities;
 using Dungeon.Decorators;
+using Dungeon.States;
 
 namespace Dungeon.Core
 {
@@ -15,59 +16,64 @@ namespace Dungeon.Core
 
         private const int DefaultShieldDuration = 5000;
 
-        private bool _isRunning = true;
+        private bool _isLoopRunning = true;
         private string _exitMessage = "Конец";
-        private Map _gameMap;
-        private Player _player;
-        private IEntity _activePlayer;
-        private int _shieldTimer = 0;
-        private int _swordUses = 0; 
         private Stopwatch _gameTimer = new Stopwatch();
-        
-        private CombatFacade _combat = new CombatFacade();
-        private ConsoleRenderer _renderer = new ConsoleRenderer();
-        private InputHandler _input = new InputHandler();
+        private IGameState _currentState = null!;
+
+        public Map GameMap { get; }
+        public Player Player { get; }
+        public IEntity ActivePlayer { get; set; }
+        public int ShieldTimer { get; set; }
+        public int SwordUses { get; set; }
+
+        public CombatFacade Combat { get; } = new CombatFacade();
+        public ConsoleRenderer Renderer { get; } = new ConsoleRenderer();
+        public InputHandler Input { get; } = new InputHandler();
+        public IGameState CurrentState => _currentState;
 
         private GameManager()
         {
-            _gameMap = new Map(30, 10);
-            _player = new Player { Name = "Hero", X = 15, Y = 7 };
-            _activePlayer = _player;
-            _gameMap.Entities.Add(_player);
-            _renderer.SubscribeToPlayerHealth(_player.HealthPoints);
+            GameMap = new Map(30, 10);
+            Player = new Player { Name = "Hero", X = 15, Y = 7 };
+            ActivePlayer = Player;
+            GameMap.Entities.Add(Player);
+            Renderer.SubscribeToPlayerHealth(Player.HealthPoints);
+            ChangeState(new GameplayState(this));
+        }
+
+        public void ChangeState(IGameState newState)
+        {
+            _currentState = newState;
+        }
+
+        public void StopGame()
+        {
+            _isLoopRunning = false;
         }
 
         public void Run()
         {
             InitializeConsole();
             
-            _gameMap.Entities.Add(new Ork { X = 5, Y = 3 });
-            _gameMap.Entities.Add(new Slime { X = 20, Y = 3 });
+            GameMap.Entities.Add(new Ork { X = 5, Y = 3 });
+            GameMap.Entities.Add(new Slime { X = 20, Y = 3 });
 
             _gameTimer.Start();
             long lastTime = _gameTimer.ElapsedMilliseconds;
 
-            while (_isRunning)
+            while (_isLoopRunning)
             {
                 long currentTime = _gameTimer.ElapsedMilliseconds;
                 int deltaTime = (int)(currentTime - lastTime);
                 lastTime = currentTime;
 
-                HandleInput();
-                UpdateEffects(deltaTime);
-                CheckCollisions();
+                _currentState.HandleInput();
+                _currentState.Update(deltaTime);
+                _currentState.Render();
 
-                if (_player.IsDead)
-                {
-                    _exitMessage = "ГЕРОЙ ПОГИБ!";
-                    _isRunning = false;
-                }
-
-                _renderer.Render(_gameMap, _activePlayer, _player, _shieldTimer, _swordUses);
                 System.Threading.Thread.Sleep(10);
             }
-
-            _renderer.ShowGameOver(_exitMessage);
         }
 
         private void InitializeConsole()
@@ -76,82 +82,31 @@ namespace Dungeon.Core
             Console.CursorVisible = false;
         }
 
-        private void HandleInput()
+        public void HandleItemPickups()
         {
-            var (dx, dy, escape) = _input.GetMovement();
-            
-            if (escape)
+            if (GameMap.IsShieldSpawned && IsPlayerOnItem(GameMap.ShieldX, GameMap.ShieldY))
             {
-                _isRunning = false;
-                return;
+                ActivePlayer = new ShieldDecorator(Player);
+                ShieldTimer = DefaultShieldDuration;
+                GameMap.IsShieldSpawned = false;
             }
 
-            if (dx == 0 && dy == 0) return;
-
-            int nextX = _player.X + dx;
-            int nextY = _player.Y + dy;
-
-            if (IsWithinMapBoundaries(nextX, nextY))
+            if (GameMap.IsSwordSpawned && IsPlayerOnItem(GameMap.SwordX, GameMap.SwordY))
             {
-                _player.X = nextX;
-                _player.Y = nextY;
-            }
-        }
-
-        private bool IsWithinMapBoundaries(int x, int y)
-        {
-            return x > 0 && x < _gameMap.Width - 1 && y > 0 && y < _gameMap.Height - 1;
-        }
-
-        private void UpdateEffects(int deltaTime)
-        {
-            if (_shieldTimer > 0)
-            {
-                _shieldTimer -= deltaTime;
-                if (_shieldTimer <= 0)
-                {
-                    _shieldTimer = 0;
-                    _activePlayer = (_swordUses > 0) ? new SwordDecorator(_player) : _player;
-                }
-            }
-
-            foreach (var enemy in _gameMap.Entities.OfType<Enemy>())
-            {
-                enemy.UpdateCooldown(deltaTime);
-            }
-        }
-
-        private void CheckCollisions()
-        {
-            HandleItemPickups();
-            HandleCombat();
-        }
-
-        private void HandleItemPickups()
-        {
-            if (_gameMap.IsShieldSpawned && IsPlayerOnItem(_gameMap.ShieldX, _gameMap.ShieldY))
-            {
-                _activePlayer = new ShieldDecorator(_player);
-                _shieldTimer = DefaultShieldDuration;
-                _gameMap.IsShieldSpawned = false;
-            }
-
-            if (_gameMap.IsSwordSpawned && IsPlayerOnItem(_gameMap.SwordX, _gameMap.SwordY))
-            {
-                _activePlayer = new SwordDecorator(_activePlayer);
-                _swordUses = 0; 
-                _gameMap.IsSwordSpawned = false;
+                ActivePlayer = new SwordDecorator(ActivePlayer);
+                SwordUses = 0; 
+                GameMap.IsSwordSpawned = false;
             }
         }
 
         private bool IsPlayerOnItem(int itemX, int itemY)
         {
-            return _player.X == itemX && _player.Y == itemY;
+            return Player.X == itemX && Player.Y == itemY;
         }
 
-        private void HandleCombat()
+        public void HandleCombat()
         {
-            foreach (var enemy in _gameMap.Entities.OfType<Enemy>().ToList())
+            foreach (var enemy in GameMap.Entities.OfType<Enemy>().ToList())
             {
                 if (IsAdjacentToPlayer(enemy))
                 {
@@ -164,20 +119,20 @@ namespace Dungeon.Core
                             enemy.SetStrategy(new FleeBehavior());
                         }
 
-                        enemy.ExecuteAttack(_activePlayer, _player, _combat, () => {});
+                        enemy.ExecuteAttack(ActivePlayer, Player, Combat, () => {});
                         continue;
                     }
 
                     if (enemy.CanAttack && !enemy.HealthPoints.IsDead)
                     {
-                        enemy.ExecuteAttack(_activePlayer, _player, _combat, () => {
-                            if (_activePlayer is SwordDecorator)
+                        enemy.ExecuteAttack(ActivePlayer, Player, Combat, () => {
+                            if (ActivePlayer is SwordDecorator)
                             {
-                                _swordUses++;
-                                if (_swordUses >= 2)
+                                SwordUses++;
+                                if (SwordUses >= 2)
                                 {
-                                    _activePlayer = (_shieldTimer > 0) ? new ShieldDecorator(_player) : _player;
-                                    _swordUses = 0;
+                                    ActivePlayer = (ShieldTimer > 0) ? new ShieldDecorator(Player) : Player;
+                                    SwordUses = 0;
                                 }
                             }
                         });
@@ -186,19 +141,19 @@ namespace Dungeon.Core
 
                 if (enemy.HealthPoints.IsDead)
                 {
-                    _gameMap.Entities.Remove(enemy);
+                    GameMap.Entities.Remove(enemy);
                 }
             }
         }
 
         private bool IsAdjacentToPlayer(Entity entity)
         {
-            return Math.Abs(entity.X - _player.X) <= 1 && Math.Abs(entity.Y - _player.Y) <= 1;
+            return Math.Abs(entity.X - Player.X) <= 1 && Math.Abs(entity.Y - Player.Y) <= 1;
         }
 
         public void Dispose()
         {
-            _renderer.UnsubscribeFromPlayerHealth(_player?.HealthPoints!);
+            Renderer.UnsubscribeFromPlayerHealth(Player?.HealthPoints!);
         }
     }
 }
