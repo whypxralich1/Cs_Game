@@ -1,4 +1,3 @@
-// Slime.cs
 using System;
 using System.Collections.Generic;
 using Dungeon.Logic;
@@ -13,11 +12,7 @@ namespace Dungeon.Entities
             HealthPoints = new Health(20);
             Damage = 5;
             Skills = new List<string> { "Sticky Spit" };
-        }
-
-        public override void Attack()
-        {
-            Console.WriteLine($"{Name} брызгает слизью! Нанесено {Damage} урона.");
+            SetStrategy(new MeleeAttack());
         }
 
         public override Entity Clone()
