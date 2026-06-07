@@ -8,7 +8,7 @@ using Dungeon.Decorators;
 
 namespace Dungeon.Core
 {
-    public class GameManager
+    public class GameManager : IDisposable
     {
         private static GameManager? _instance;
         public static GameManager Instance => _instance ??= new GameManager();
@@ -34,6 +34,7 @@ namespace Dungeon.Core
             _player = new Player { Name = "Hero", X = 15, Y = 7 };
             _activePlayer = _player;
             _gameMap.Entities.Add(_player);
+            _renderer.SubscribeToPlayerHealth(_player.HealthPoints);
         }
 
         public void Run()
@@ -62,7 +63,7 @@ namespace Dungeon.Core
                     _isRunning = false;
                 }
 
-                _renderer.Render(_gameMap, _activePlayer, _player, _shieldTimer);
+                _renderer.Render(_gameMap, _activePlayer, _player, _shieldTimer, _swordUses);
                 System.Threading.Thread.Sleep(10);
             }
 
@@ -154,7 +155,9 @@ namespace Dungeon.Core
             {
                 if (IsAdjacentToPlayer(enemy))
                 {
-                    if (enemy.HitsReceived > 0)
+                    int escapeThreshold = (int)(enemy.HealthPoints.Max * 0.3);
+
+                    if (enemy.HealthPoints.Current <= escapeThreshold && !enemy.HealthPoints.IsDead)
                     {
                         if (!(enemy.AttackStrategy is FleeBehavior))
                         {
@@ -165,18 +168,19 @@ namespace Dungeon.Core
                         continue;
                     }
 
-                    if (enemy.CanAttack)
+                    if (enemy.CanAttack && !enemy.HealthPoints.IsDead)
                     {
                         enemy.ExecuteAttack(_activePlayer, _player, _combat, () => {
-                            _swordUses++;
-                            if (_swordUses >= 2)
+                            if (_activePlayer is SwordDecorator)
                             {
-                                _activePlayer = (_shieldTimer > 0) ? new ShieldDecorator(_player) : _player;
-                                _swordUses = 0;
+                                _swordUses++;
+                                if (_swordUses >= 2)
+                                {
+                                    _activePlayer = (_shieldTimer > 0) ? new ShieldDecorator(_player) : _player;
+                                    _swordUses = 0;
+                                }
                             }
                         });
-
-                        enemy.HitsReceived++; 
                     }
                 }
 
@@ -190,6 +194,11 @@ namespace Dungeon.Core
         private bool IsAdjacentToPlayer(Entity entity)
         {
             return Math.Abs(entity.X - _player.X) <= 1 && Math.Abs(entity.Y - _player.Y) <= 1;
+        }
+
+        public void Dispose()
+        {
+            _renderer.UnsubscribeFromPlayerHealth(_player?.HealthPoints!);
         }
     }
 }

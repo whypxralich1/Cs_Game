@@ -10,11 +10,17 @@ namespace Dungeon.Core
             int incoming = activeEntity.CalculateIncomingDamage(enemy.Damage);
             playerBase.TakeDamage(incoming);
 
-            int outgoing = activeEntity.CalculateOutgoingDamage(0);
+            int basePunchDamage = 10;
+            int outgoing = activeEntity.CalculateOutgoingDamage(basePunchDamage);
+            
             if (outgoing > 0)
             {
                 enemy.TakeDamage(outgoing);
-                onSwordBreak?.Invoke();
+                
+                if (activeEntity is Decorators.SwordDecorator)
+                {
+                    onSwordBreak?.Invoke();
+                }
             }
         }
     }
