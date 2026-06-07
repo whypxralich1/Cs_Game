@@ -20,6 +20,7 @@ namespace Dungeon.Core
         private string _exitMessage = "Конец";
         private Stopwatch _gameTimer = new Stopwatch();
         private IGameState _currentState = null!;
+        private readonly Stack<ICommand> _commandHistory = new Stack<ICommand>();
 
         public Map GameMap { get; }
         public Player Player { get; }
@@ -50,6 +51,21 @@ namespace Dungeon.Core
         public void StopGame()
         {
             _isLoopRunning = false;
+        }
+
+        public void ExecuteGameCommand(ICommand command)
+        {
+            command.Execute();
+            _commandHistory.Push(command);
+        }
+
+        public void UndoLastCommand()
+        {
+            if (_commandHistory.Count > 0)
+            {
+                ICommand command = _commandHistory.Pop();
+                command.Undo();
+            }
         }
 
         public void Run()

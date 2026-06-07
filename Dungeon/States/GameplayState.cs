@@ -3,6 +3,7 @@ using System.Linq;
 using Dungeon.Core;
 using Dungeon.Entities;
 using Dungeon.Decorators;
+using Dungeon.Commands;
 
 namespace Dungeon.States
 {
@@ -17,23 +18,40 @@ namespace Dungeon.States
 
         public void HandleInput()
         {
-            var (dx, dy, escape) = _gameManager.Input.GetMovement();
-
-            if (escape)
+            if (Console.KeyAvailable)
             {
-                _gameManager.ChangeState(new PauseState(_gameManager));
-                return;
-            }
+                ConsoleKeyInfo keyInfo = Console.ReadKey(true);
 
-            if (dx == 0 && dy == 0) return;
+                if (keyInfo.Key == ConsoleKey.Z)
+                {
+                    _gameManager.UndoLastCommand();
+                    return;
+                }
 
-            int nextX = _gameManager.Player.X + dx;
-            int nextY = _gameManager.Player.Y + dy;
+                if (keyInfo.Key == ConsoleKey.Escape)
+                {
+                    _gameManager.ChangeState(new PauseState(_gameManager));
+                    return;
+                }
 
-            if (nextX > 0 && nextX < _gameManager.GameMap.Width - 1 && nextY > 0 && nextY < _gameManager.GameMap.Height - 1)
-            {
-                _gameManager.Player.X = nextX;
-                _gameManager.Player.Y = nextY;
+                int dx = 0;
+                int dy = 0;
+
+                if (keyInfo.Key == ConsoleKey.UpArrow || keyInfo.Key == ConsoleKey.W) dy = -1;
+                else if (keyInfo.Key == ConsoleKey.DownArrow || keyInfo.Key == ConsoleKey.S) dy = 1;
+                else if (keyInfo.Key == ConsoleKey.LeftArrow || keyInfo.Key == ConsoleKey.A) dx = -1;
+                else if (keyInfo.Key == ConsoleKey.RightArrow || keyInfo.Key == ConsoleKey.D) dx = 1;
+
+                if (dx != 0 || dy != 0)
+                {
+                    int nextX = _gameManager.Player.X + dx;
+                    int nextY = _gameManager.Player.Y + dy;
+
+                    if (nextX > 0 && nextX < _gameManager.GameMap.Width - 1 && nextY > 0 && nextY < _gameManager.GameMap.Height - 1)
+                    {
+                        _gameManager.ExecuteGameCommand(new MoveCommand(_gameManager.Player, dx, dy));
+                    }
+                }
             }
         }
 
@@ -66,6 +84,8 @@ namespace Dungeon.States
         public void Render()
         {
             _gameManager.Renderer.Render(_gameManager.GameMap, _gameManager.ActivePlayer, _gameManager.Player, _gameManager.ShieldTimer, _gameManager.SwordUses);
+            Console.SetCursorPosition(0, _gameManager.GameMap.Height + 3);
+            Console.WriteLine("[ УПРАВЛЕНИЕ ]: WASD/Стрелочки - Ход | Z - Отмена шага (Undo)".PadRight(80));
         }
     }
 }
