@@ -21,6 +21,7 @@ namespace Dungeon.Core
         private Player _player;
         private IEntity _activePlayer;
         private int _shieldTimer = 0;
+        private int _swordUses = 0; 
         private Stopwatch _gameTimer = new Stopwatch();
         
         private CombatFacade _combat = new CombatFacade();
@@ -109,7 +110,7 @@ namespace Dungeon.Core
                 if (_shieldTimer <= 0)
                 {
                     _shieldTimer = 0;
-                    _activePlayer = _player;
+                    _activePlayer = (_swordUses > 0) ? new SwordDecorator(_player) : _player;
                 }
             }
 
@@ -137,6 +138,7 @@ namespace Dungeon.Core
             if (_gameMap.IsSwordSpawned && IsPlayerOnItem(_gameMap.SwordX, _gameMap.SwordY))
             {
                 _activePlayer = new SwordDecorator(_activePlayer);
+                _swordUses = 0; 
                 _gameMap.IsSwordSpawned = false;
             }
         }
@@ -152,18 +154,35 @@ namespace Dungeon.Core
             {
                 if (IsAdjacentToPlayer(enemy))
                 {
-                    if (enemy.CanAttack)
+                    if (enemy.HitsReceived > 0)
                     {
-                        _combat.ResolveCombat(_activePlayer, _player, enemy, () => {
-                            _activePlayer = (_shieldTimer > 0) ? new ShieldDecorator(_player) : _player;
-                        });
-                        enemy.ResetCooldown();
+                        if (!(enemy.AttackStrategy is FleeBehavior))
+                        {
+                            enemy.SetStrategy(new FleeBehavior());
+                        }
+
+                        enemy.ExecuteAttack(_activePlayer, _player, _combat, () => {});
+                        continue;
                     }
 
-                    if (enemy.HealthPoints.IsDead)
+                    if (enemy.CanAttack)
                     {
-                        _gameMap.Entities.Remove(enemy);
+                        enemy.ExecuteAttack(_activePlayer, _player, _combat, () => {
+                            _swordUses++;
+                            if (_swordUses >= 2)
+                            {
+                                _activePlayer = (_shieldTimer > 0) ? new ShieldDecorator(_player) : _player;
+                                _swordUses = 0;
+                            }
+                        });
+
+                        enemy.HitsReceived++; 
                     }
+                }
+
+                if (enemy.HealthPoints.IsDead)
+                {
+                    _gameMap.Entities.Remove(enemy);
                 }
             }
         }

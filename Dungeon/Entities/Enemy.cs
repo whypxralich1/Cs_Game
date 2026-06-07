@@ -12,6 +12,24 @@ namespace Dungeon.Entities
 
         public bool CanAttack => _attackCooldown <= 0;
 
+        public int HitsReceived { get; set; } = 0;
+
+        public IAttackStrategy AttackStrategy { get; private set; } = null!;
+
+        public void SetStrategy(IAttackStrategy strategy)
+        {
+            AttackStrategy = strategy ?? throw new ArgumentNullException(nameof(strategy));
+        }
+
+        public void ExecuteAttack(IEntity activePlayer, Player playerBase, Core.CombatFacade combat, Action onSwordBreak)
+        {
+            if (AttackStrategy != null)
+            {
+                AttackStrategy.Execute(this, activePlayer, playerBase, combat, onSwordBreak);
+                ResetCooldown();
+            }
+        }
+
         public void UpdateCooldown(int deltaTime)
         {
             if (_attackCooldown > 0)
@@ -22,7 +40,7 @@ namespace Dungeon.Entities
         {
             _attackCooldown = CooldownDuration;
         }
-        public abstract void Attack();
+
         public override abstract Entity Clone();
     }
 }
