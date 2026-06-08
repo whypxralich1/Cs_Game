@@ -6,43 +6,52 @@ namespace Dungeon.Logic
     {
         public event Action<int, int>? OnHealthChanged;
 
-        public int Current { get; private set; }
-        public int Max { get; private set; }
-        public bool IsDead => Current <= 0;
+        private int _current;
+        private int _max;
 
-        public Health(int max)
+        public int Max
         {
-            if (max <= 0) throw new ArgumentException("Max health must be positive");
-            Max = max;
-            Current = max;
+            get => _max;
+            private set => _max = value;
+        }
+
+        public int Current
+        {
+            get => _current;
+            private set
+            {
+                _current = Math.Clamp(value, 0, _max);
+                OnHealthChanged?.Invoke(_current, _max);
+            }
+        }
+
+        public bool IsDead => _current <= 0;
+
+        public Health(int maxHealth)
+        {
+            _max = maxHealth;
+            _current = maxHealth;
         }
 
         public void TakeDamage(int amount)
         {
-            if (amount < 0) return;
-            
-            int oldHealth = Current;
             Current -= amount;
-            if (Current < 0) Current = 0;
-
-            if (oldHealth != Current)
-            {
-                OnHealthChanged?.Invoke(Current, Max);
-            }
         }
 
         public void Heal(int amount)
         {
-            if (IsDead || amount < 0) return;
-
-            int oldHealth = Current;
             Current += amount;
-            if (Current > Max) Current = Max;
+        }
 
-            if (oldHealth != Current)
-            {
-                OnHealthChanged?.Invoke(Current, Max);
-            }
+        public void InitHealth(int current, int max)
+        {
+            _max = max;
+            _current = current;
+        }
+
+        public void ForceUpdateNotification()
+        {
+            OnHealthChanged?.Invoke(_current, _max);
         }
     }
 }
