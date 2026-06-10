@@ -28,48 +28,56 @@ namespace Dungeon.States
             if (Console.KeyAvailable)
             {
                 ConsoleKeyInfo keyInfo = Console.ReadKey(true);
+                char keyChar = char.ToUpper(keyInfo.KeyChar);
+                bool turnMade = false;
 
-                if (keyInfo.Key == ConsoleKey.Z)
+                if (keyInfo.Key == ConsoleKey.Z || keyChar == 'Z' || keyChar == 'Я')
                 {
                     _gameManager.UndoLastCommand();
-                    return;
+                    turnMade = true;
                 }
-
-                if (keyInfo.Key == ConsoleKey.Escape)
+                else if (keyInfo.Key == ConsoleKey.Escape)
                 {
                     _gameManager.ChangeState(new PauseState(_gameManager));
                     return;
                 }
-
-                if (keyInfo.Key == ConsoleKey.K)
+                else if (keyInfo.Key == ConsoleKey.K || keyChar == 'K' || keyChar == 'Л')
                 {
                     SaveGame();
-                    return;
+                    turnMade = true;
                 }
-
-                if (keyInfo.Key == ConsoleKey.L)
+                else if (keyInfo.Key == ConsoleKey.L || keyChar == 'L' || keyChar == 'Д')
                 {
                     LoadGame();
-                    return;
+                    turnMade = true;
+                }
+                else
+                {
+                    int dx = 0;
+                    int dy = 0;
+
+                    if (keyInfo.Key == ConsoleKey.UpArrow || keyInfo.Key == ConsoleKey.W || keyChar == 'W' || keyChar == 'Ц') dy = -1;
+                    else if (keyInfo.Key == ConsoleKey.DownArrow || keyInfo.Key == ConsoleKey.S || keyChar == 'S' || keyChar == 'Ы') dy = 1;
+                    else if (keyInfo.Key == ConsoleKey.LeftArrow || keyInfo.Key == ConsoleKey.A || keyChar == 'A' || keyChar == 'Ф') dx = -1;
+                    else if (keyInfo.Key == ConsoleKey.RightArrow || keyInfo.Key == ConsoleKey.D || keyChar == 'D' || keyChar == 'В') dx = 1;
+
+                    if (dx != 0 || dy != 0)
+                    {
+                        int nextX = _gameManager.Player.X + dx;
+                        int nextY = _gameManager.Player.Y + dy;
+
+                        if (!_gameManager.GameMap.IsWall(nextX, nextY))
+                        {
+                            _gameManager.ExecuteGameCommand(new Commands.MoveCommand(_gameManager.Player, dx, dy));
+                            turnMade = true;
+                        }
+                    }
                 }
 
-                int dx = 0;
-                int dy = 0;
-
-                if (keyInfo.Key == ConsoleKey.UpArrow || keyInfo.Key == ConsoleKey.W) dy = -1;
-                else if (keyInfo.Key == ConsoleKey.DownArrow || keyInfo.Key == ConsoleKey.S) dy = 1;
-                else if (keyInfo.Key == ConsoleKey.LeftArrow || keyInfo.Key == ConsoleKey.A) dx = -1;
-                else if (keyInfo.Key == ConsoleKey.RightArrow || keyInfo.Key == ConsoleKey.D) dx = 1;
-
-                if (dx != 0 || dy != 0)
+                if (turnMade)
                 {
-                    int nextX = _gameManager.Player.X + dx;
-                    int nextY = _gameManager.Player.Y + dy;
-
-                    if (nextX > 0 && nextX < _gameManager.GameMap.Width - 1 && nextY > 0 && nextY < _gameManager.GameMap.Height - 1)
-                    {
-                        _gameManager.ExecuteGameCommand(new Commands.MoveCommand(_gameManager.Player, dx, dy));
-                    }
+                    _gameManager.HandleItemPickups();
+                    _gameManager.HandleCombat();
                 }
             }
         }
@@ -79,29 +87,14 @@ namespace Dungeon.States
             if (_messageTimer > 0)
             {
                 _messageTimer -= deltaTime;
-                if (_messageTimer <= 0)
-                {
-                    _statusMessage = string.Empty;
-                }
+                if (_messageTimer <= 0) _statusMessage = string.Empty;
             }
 
-            if (_gameManager.ShieldTimer > 0)
+            if (_gameManager.GameMap.IsHoleSpawned && _gameManager.Player.X == _gameManager.GameMap.TrapX && _gameManager.Player.Y == _gameManager.GameMap.TrapY)
             {
-                _gameManager.ShieldTimer -= deltaTime;
-                if (_gameManager.ShieldTimer <= 0)
-                {
-                    _gameManager.ShieldTimer = 0;
-                    _gameManager.ActivePlayer = (_gameManager.SwordUses > 0) ? new SwordDecorator(_gameManager.Player) : _gameManager.Player;
-                }
+                _gameManager.NextLevel();
+                return;
             }
-
-            foreach (var enemy in _gameManager.GameMap.Entities.OfType<Enemy>())
-            {
-                enemy.UpdateCooldown(deltaTime);
-            }
-
-            _gameManager.HandleItemPickups();
-            _gameManager.HandleCombat();
 
             if (_gameManager.Player.IsDead)
             {
@@ -113,7 +106,14 @@ namespace Dungeon.States
         {
             _gameManager.Renderer.Render(_gameManager.GameMap, _gameManager.ActivePlayer, _gameManager.Player, _gameManager.ShieldTimer, _gameManager.SwordUses);
             
-            Console.SetCursorPosition(0, _gameManager.GameMap.Height + 2);
+            Console.SetCursorPosition(0, _gameManager.GameMap.Height + 4);
+            Console.ForegroundColor = ConsoleColor.DarkCyan;
+            
+            string holeStatus = _gameManager.GameMap.IsHoleSpawned ? "Выход открыт: X" : "Выход: Заблокирован (Убейте врагов)";
+            Console.WriteLine($"[ ТЕКУЩИЙ ЯРУС ПОДЗЕМЕЛЬЯ: {_gameManager.CurrentLevel} / 5 ] | {holeStatus}".PadRight(80));
+            Console.ResetColor();
+
+            Console.SetCursorPosition(0, _gameManager.GameMap.Height + 5);
             if (!string.IsNullOrEmpty(_statusMessage))
             {
                 Console.ForegroundColor = ConsoleColor.Green;
@@ -125,7 +125,7 @@ namespace Dungeon.States
                 Console.WriteLine("".PadRight(80));
             }
 
-            Console.SetCursorPosition(0, _gameManager.GameMap.Height + 3);
+            Console.SetCursorPosition(0, _gameManager.GameMap.Height + 6);
             Console.WriteLine("[ УПРАВЛЕНИЕ ]: WASD - Ход | Z - Undo | K - Сохранить | L - Загрузить".PadRight(80));
         }
 
@@ -133,6 +133,7 @@ namespace Dungeon.States
         {
             var saveData = new SaveData
             {
+                CurrentLevel = _gameManager.CurrentLevel,
                 PlayerX = _gameManager.Player.X,
                 PlayerY = _gameManager.Player.Y,
                 CurrentHealth = _gameManager.Player.HealthPoints.Current,
@@ -160,7 +161,6 @@ namespace Dungeon.States
             {
                 string json = JsonSerializer.Serialize(saveData, new JsonSerializerOptions { WriteIndented = true });
                 File.WriteAllText(_saveFilePath, json);
-                
                 _statusMessage = "[ СИСТЕМА ]: Игра успешно сохранена!";
                 _messageTimer = 2000;
             }
@@ -175,7 +175,7 @@ namespace Dungeon.States
         {
             if (!File.Exists(_saveFilePath))
             {
-                _statusMessage = "[ ОШИБКА ]: Файл сохранения не найден!";
+                _statusMessage = "[ ОШИБКА ]: Чекпоинт не найден!";
                 _messageTimer = 2000;
                 return;
             }
@@ -191,8 +191,8 @@ namespace Dungeon.States
                 _gameManager.Player.HealthPoints.InitHealth(saveData.CurrentHealth, saveData.MaxHealth);
                 _gameManager.ShieldTimer = saveData.ShieldTimer;
                 _gameManager.SwordUses = saveData.SwordUses;
-                _gameManager.GameMap.IsShieldSpawned = saveData.IsShieldSpawned;
-                _gameManager.GameMap.IsSwordSpawned = saveData.IsSwordSpawned;
+
+                _gameManager.SetupLoadedMap(saveData.CurrentLevel, saveData.IsShieldSpawned, saveData.IsSwordSpawned);
 
                 _gameManager.GameMap.Entities.Clear();
                 _gameManager.GameMap.Entities.Add(_gameManager.Player);
@@ -222,9 +222,9 @@ namespace Dungeon.States
                 }
                 
                 _gameManager.Player.HealthPoints.ForceUpdateNotification();
-                
-                _statusMessage = "[ СИСТЕМА ]: Загружено из последнего чекпоинта!";
+                _statusMessage = "[ СИСТЕМА ]: Загручено с ласт чекпоинта!";
                 _messageTimer = 2000;
+                Console.Clear();
             }
             catch
             {
