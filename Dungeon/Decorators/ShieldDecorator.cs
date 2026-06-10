@@ -10,6 +10,8 @@ namespace Dungeon.Decorators
 
         public override string Name => _innerEntity.Name + " [С ЩИТОМ]";
 
+        public IEntity InnerEntity => _innerEntity;
+
         public override int CalculateIncomingDamage(int rawDamage)
         {
             int reducedDamage = (int)(rawDamage * DamageReductionMultiplier);

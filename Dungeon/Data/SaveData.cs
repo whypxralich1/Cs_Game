@@ -4,6 +4,7 @@ namespace Dungeon.Data
 {
     public class SaveData
     {
+        public int CurrentLevel { get; set; } = 1;
         public int PlayerX { get; set; }
         public int PlayerY { get; set; }
         public int CurrentHealth { get; set; }

@@ -9,7 +9,7 @@ namespace Dungeon.Entities
         public Ork()
         {
             Name = "Iron Orc";
-            HealthPoints = new Health(125); 
+            HealthPoints = new Health(80); 
             Damage = 15;
             Skills = new List<string> { "Heavy Swing" };
             SetStrategy(new MeleeAttack());

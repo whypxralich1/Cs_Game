@@ -34,35 +34,46 @@ namespace Dungeon.Core
             _hudLine = $"[HP: {barText}] {current}/{max}";
         }
 
+        public void ShowStartScreen()
+        {
+            Console.Clear();
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine("########################################");
+            Console.WriteLine("#                                      #");
+            Console.WriteLine("#           DUNGEON CRAWLER            #");
+            Console.WriteLine("#                                      #");
+            Console.WriteLine("########################################");
+            Console.ResetColor();
+            Console.WriteLine("\nНажмите любую клавишу для начала приключений...");
+            Console.ReadKey(true);
+            Console.Clear();
+        }
+
         public void Render(Map map, IEntity activePlayer, Player playerBase, int shieldTimer, int swordUses)
         {
             Console.SetCursorPosition(0, 0);
             
             string view = map.GetView();
-            if (view.Contains("DUNGEON CRAWLER"))
-            {
-                int endOfFirstLine = view.IndexOf('\n');
-                if (endOfFirstLine != -1)
-                {
-                    int totalCreatures = map.Entities.Count - 1;
-                    string newHeader = $"DUNGEON CRAWLER | Существ: {totalCreatures}";
-                    view = newHeader.PadRight(60) + view.Substring(endOfFirstLine);
-                }
-            }
-            
             Console.Write(view);
 
-            string weaponStatus = activePlayer is Decorators.SwordDecorator 
-                ? $"Меч (Ударов: {2 - swordUses})" 
-                : "Кулаки";
+            Console.SetCursorPosition(0, map.Height + 1);
+            bool hasSword = swordUses > 0 || activePlayer.GetType().Name.Contains("Sword");
+            string weaponStatus = hasSword ? $"Меч (Ударов: {5 - swordUses})" : "Кулаки";
 
-            string statusLine = $"[ СТАТУС ]: {activePlayer.Name} | Оружие: {weaponStatus} | {_hudLine}";
-            Console.WriteLine(statusLine.PadRight(80));
+            string statusLine = $"[ СТАТУС ]: {playerBase.Name} | Оружие: {weaponStatus} | {_hudLine}";
+            Console.Write(statusLine.PadRight(80));
 
+            Console.SetCursorPosition(0, map.Height + 2);
             if (shieldTimer > 0)
-                Console.WriteLine($"[ ЩИТ ]: {(shieldTimer / 1000.0):F1} сек.".PadRight(80));
+            {
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.Write($"[ ЩИТ ]: Активен еще {shieldTimer} ход(ов).".PadRight(80));
+                Console.ResetColor();
+            }
             else
-                Console.WriteLine("".PadRight(80));
+            {
+                Console.Write("[ ЩИТ ]: Неактивен".PadRight(80));
+            }
         }
 
         public void ShowGameOver(string message)
@@ -73,7 +84,7 @@ namespace Dungeon.Core
             Console.WriteLine($"# {message.PadLeft(message.Length + (34 - message.Length) / 2).PadRight(34)} #");
             Console.WriteLine("######################################");
             Console.WriteLine("\nНажмите любую клавишу для выхода...");
-            Console.ReadKey();
+            Console.ReadKey(true);
         }
     }
 }
